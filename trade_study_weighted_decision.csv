@@ -1,0 +1,13 @@
+mission,mission_key,package_size,cost_scenario,Lethality,Survivability,Sustainability,Affordability,Weighted_Score,is_winner,margin
+Air-to-Air (Fighter Sweep),AtA,2,target_15M,0.0,1.0,1.0,0.0,0.4,False,0.19999999999999996
+Strike,Strike,2,target_15M,1.0,0.0,0.0,1.0,0.6,True,0.19999999999999996
+Air-to-Air (Fighter Sweep),AtA,2,threshold_30M,0.0,1.0,1.0,0.0,0.4,False,0.19999999999999996
+Strike,Strike,2,threshold_30M,1.0,0.0,0.0,1.0,0.6,True,0.19999999999999996
+Air-to-Air (Fighter Sweep),AtA,4,target_15M,0.0,1.0,1.0,0.0,0.4,False,0.19999999999999996
+Strike,Strike,4,target_15M,1.0,0.0,0.0,1.0,0.6,True,0.19999999999999996
+Air-to-Air (Fighter Sweep),AtA,4,threshold_30M,0.0,1.0,1.0,0.0,0.4,False,0.19999999999999996
+Strike,Strike,4,threshold_30M,1.0,0.0,0.0,1.0,0.6,True,0.19999999999999996
+Air-to-Air (Fighter Sweep),AtA,6,target_15M,0.0,1.0,1.0,0.0,0.4,False,0.19999999999999996
+Strike,Strike,6,target_15M,1.0,0.0,0.0,1.0,0.6,True,0.19999999999999996
+Air-to-Air (Fighter Sweep),AtA,6,threshold_30M,0.0,1.0,1.0,0.0,0.4,False,0.19999999999999996
+Strike,Strike,6,threshold_30M,1.0,0.0,0.0,1.0,0.6,True,0.19999999999999996
