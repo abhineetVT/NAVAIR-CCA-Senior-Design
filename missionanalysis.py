@@ -10,15 +10,28 @@ Air-to-Air (Counter-Air Fighter Sweep) mission or the Strike mission,
 per the 2026-2027 Navy UG Team CCA RFP.
 
 The tool scores each mission type (and force-package variants of each)
-against the four pillars called out in the RFP / design review:
+against five pillars. NOTE: this was originally four pillars, but the
+team caught that a single "Affordability" pillar was silently conflating
+two different things -- what the CCA itself costs to buy vs. how much you
+spend fighting with it -- so it is now split into two:
 
-    1. LETHALITY       - probability of achieving a mission kill
-    2. SURVIVABILITY    - probability the CCA (and any manned wingman)
-                          returns from the sortie
-    3. SUSTAINABILITY   - sortie generation rate the air wing can sustain,
-                          given turnaround time, reliability, and attrition
-    4. AFFORDABILITY    - cost per mission kill / cost per campaign,
-                          including attrition replacement
+    1. LETHALITY         - probability of achieving a mission kill
+    2. SURVIVABILITY      - probability the CCA (and any manned wingman)
+                            returns from the sortie
+    3. SUSTAINABILITY     - sortie generation rate the air wing can sustain,
+                            given turnaround time, reliability, and attrition
+    4. AFFORDABILITY       - the CCA's own unit/procurement cost (RFP Report
+                            Requirement (j): "unit cost for a production run
+                            of 500 aircraft"). This is set by the airframe,
+                            not the mission -- same CCA, same price tag,
+                            whether it flies Air-to-Air or Strike. Expect
+                            this pillar to be a TIE between missions.
+    5. COST-EFFECTIVENESS  - cost per mission kill (weapons expended +
+                            expected attrition, divided by P(kill)). This is
+                            an operational/combat-economics metric, NOT the
+                            same thing as Affordability -- it's driven by
+                            weapon unit price and kill-chain performance, not
+                            by what the CCA costs to build.
 
 IMPORTANT — ABOUT THE NUMBERS IN THIS SCRIPT
 ----------------------------------------------
@@ -54,7 +67,7 @@ shoot logic), not a single roll.
 
 Usage
 -----
-    python3 missionanalysis.py
+    python3 cca_trade_study.py
 
 Outputs (written next to this script):
     trade_study_results.csv      - summary metrics per mission/package
@@ -70,12 +83,42 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
 from typing import Dict, List
 
-RNG = np.random.default_rng(seed=30)  # reproducible runs; change/remove seed for fresh draws
+RNG = np.random.default_rng(seed=42)  # reproducible runs; change/remove seed for fresh draws
 
 
 # ===========================================================================
 # 1. RFP-DERIVED MISSION PARAMETERS  (values taken from the RFP where noted)
 # ===========================================================================
+#
+# SHARED SENSOR BASELINE (Find / Fix / Track)
+# ---------------------------------------------------------------------------
+# Both missions fly the same CCA airframe with the same avionics/sensor
+# package (sensor_weight_lb=1000, identical for both MissionProfiles below).
+# Find, Fix, and Track are stages of the kill chain that are governed by
+# that shared sensor suite, not by which weapon is loaded -- so an earlier
+# version of this script that let A2A and Strike drift to different,
+# independently-guessed Find/Fix/Track numbers was quietly (and
+# unintentionally) giving one mission credit it hadn't earned. Both
+# missions now use the SAME Find/Fix/Track baseline below.
+#
+# Only TARGET and ASSESS are allowed to differ by mission, and only because
+# there's an actual physical reason they might:
+#   - TARGET (classify/ID the correct target before weapons release): Strike
+#     is typically cued against a pre-briefed, GPS-coordinate target (often
+#     stationary) -> higher confidence ID. A2A must positively ID a
+#     maneuvering airborne contact under IFF/rules-of-engagement uncertainty
+#     at BVR range -> lower confidence ID.
+#   - ASSESS (confirm the kill after weapons release): a destroyed aircraft
+#     (fireball, breakup, radar/IR return disappearing) is usually easier to
+#     positively confirm than a struck ground target, which can be obscured
+#     by smoke/dust or survive with disputable damage -> A2A assess is
+#     modeled higher, Strike lower.
+# These are still placeholders (see header) -- the DIRECTION is defensible,
+# the exact numbers are not yet sourced to anything and should be validated
+# by Mission Ops / Avionics & Controls.
+SENSOR_P_FIND = 0.87   # NOTIONAL shared baseline -- same avionics, both missions
+SENSOR_P_FIX = 0.85    # NOTIONAL shared baseline -- same avionics, both missions
+SENSOR_P_TRACK = 0.83  # NOTIONAL shared baseline -- same avionics, both missions
 
 @dataclass
 class MissionProfile:
@@ -121,7 +164,9 @@ AIR_TO_AIR = MissionProfile(
     weapon_pk_single_shot=0.75,          # NOTIONAL BVR single-shot Pk
     sensor_weight_lb=1000,
     ingress_profile="high_altitude",
-    p_find=0.88, p_fix=0.82, p_track=0.78, p_target=0.85, p_assess=0.90,
+    p_find=SENSOR_P_FIND, p_fix=SENSOR_P_FIX, p_track=SENSOR_P_TRACK,
+    p_target=0.85,   # lower than Strike: BVR ID of a maneuvering contact under IFF/ROE uncertainty
+    p_assess=0.90,   # higher than Strike: aircraft kill (fireball/breakup) easier to positively confirm
     threat_encounters_expected=1.4,       # short, high-intensity merge
     p_loss_given_engagement=0.15,
 )
@@ -142,7 +187,9 @@ STRIKE = MissionProfile(
     weapon_pk_single_shot=0.85,           # NOTIONAL precision-guided Pk
     sensor_weight_lb=1000,
     ingress_profile="sea_level_dash",
-    p_find=0.85, p_fix=0.90, p_track=0.90, p_target=0.92, p_assess=0.85,
+    p_find=SENSOR_P_FIND, p_fix=SENSOR_P_FIX, p_track=SENSOR_P_TRACK,
+    p_target=0.92,   # higher than A2A: pre-briefed, GPS-coordinate-cued target ID (often stationary)
+    p_assess=0.85,   # lower than A2A: ground target BDA can be obscured (smoke/dust) or disputable
     threat_encounters_expected=2.2,       # two IADS-transit legs (in/out)
     p_loss_given_engagement=0.10,
 )
@@ -368,10 +415,18 @@ def run_trade_study(package_sizes: List[int] = (2, 4, 6), n_trials: int = 20_000
 
 def normalize_for_radar(results: pd.DataFrame, package_size: int,
                          cost_scenario: str = "threshold_30M") -> pd.DataFrame:
-    """Min-max normalize the 4 pillars to [0,1] (higher = better) for the
+    """Min-max normalize the 5 pillars to [0,1] (higher = better) for the
     radar chart, using a fixed package size AND cost scenario for an
-    apples-to-apples compare. Affordability and required-fleet are
-    cost-like, so they're inverted."""
+    apples-to-apples compare. Cost-like pillars (required-fleet,
+    cost-per-kill, unit cost) are inverted so higher-on-the-chart always
+    means better.
+
+    Affordability (true CCA unit/procurement cost) is mission-agnostic by
+    construction -- same airframe, same CostModel, regardless of mission --
+    so it will normalize to a TIE (1.0 for both) whenever both missions use
+    the same cost scenario, which they always do here. That's not a bug;
+    it's the point. Don't confuse it with Cost-Effectiveness, which DOES
+    vary by mission because weapon mix and kill-chain performance differ."""
     sub = results[(results["package_size"] == package_size)
                   & (results["cost_scenario"] == cost_scenario)].copy()
 
@@ -385,7 +440,8 @@ def normalize_for_radar(results: pd.DataFrame, package_size: int,
     sub["Lethality"] = norm(sub["lethality_Pkill"])
     sub["Survivability"] = norm(sub["survivability_mean_return_rate"])
     sub["Sustainability"] = norm(sub["required_fleet_30day_campaign"], invert=True)
-    sub["Affordability"] = norm(sub["cost_per_mission_kill_musd"], invert=True)
+    sub["Affordability"] = norm(sub["cca_unit_cost_musd"], invert=True)
+    sub["Cost-Effectiveness"] = norm(sub["cost_per_mission_kill_musd"], invert=True)
     return sub
 
 
@@ -394,7 +450,7 @@ def normalize_for_radar(results: pd.DataFrame, package_size: int,
 # ===========================================================================
 
 def plot_radar(sub: pd.DataFrame, out_path: str):
-    pillars = ["Lethality", "Survivability", "Sustainability", "Affordability"]
+    pillars = ["Lethality", "Survivability", "Sustainability", "Affordability", "Cost-Effectiveness"]
     angles = np.linspace(0, 2 * np.pi, len(pillars), endpoint=False).tolist()
     angles += angles[:1]
 
@@ -485,15 +541,22 @@ def plot_affordability(results: pd.DataFrame, out_path: str, package_size: int =
 #
 # THIS IS THE PART YOU EDIT.
 #
-# The four numbers below say how much your team cares about each pillar,
+# The five numbers below say how much your team cares about each pillar,
 # and they MUST add up to 1.0. Raise a number to make that pillar matter
 # more to the final decision; lower it to make it matter less. Whatever
 # number you pick, write one sentence in your report citing WHY — e.g.
-# "Affordability weighted 0.30 because RFP Report Requirement (j) makes
+# "Affordability weighted 0.20 because RFP Report Requirement (j) makes
 # unit cost mandatory, and our PRM 2 stakeholder analysis found the Navy
 # Program Office is cost-growth sensitive." A weight with no justification
 # is just an opinion; a weight tied to an RFP section or stakeholder is a
 # defensible design decision.
+#
+# NOTE: Affordability and Cost-Effectiveness are DIFFERENT pillars now.
+# Affordability = what the CCA itself costs to buy (mission-agnostic --
+# it will score as a TIE between A2A and Strike, since it's the same
+# airframe). Cost-Effectiveness = cost per mission kill in combat (weapons
+# + attrition / P(kill)) -- this DOES vary by mission and is what used to
+# be mislabeled "Affordability" in earlier versions of this script.
 #
 # Quick way to sanity-check your numbers: they should mirror how your team
 # already weighted MoM-01..MoM-06 in PRM 2 (e.g. you weighted Unit Cost at
@@ -501,11 +564,12 @@ def plot_affordability(results: pd.DataFrame, out_path: str, package_size: int =
 # here too).
 
 PILLAR_WEIGHTS = {
-    "Lethality":      0.50,   
-    "Survivability":  0.30,   
-    "Sustainability": 0.10,   
-    "Affordability":  0.10,   
-}                             
+    "Lethality":         0.30,   # <-- EDIT ME (0.0 to 1.0)
+    "Survivability":     0.10,   # <-- EDIT ME (0.0 to 1.0)
+    "Sustainability":    0.20,   # <-- EDIT ME (0.0 to 1.0)
+    "Affordability":     0.20,   # <-- EDIT ME (0.0 to 1.0)  (CCA unit/procurement cost — mission-agnostic, expect a tie)
+    "Cost-Effectiveness": 0.20,  # <-- EDIT ME (0.0 to 1.0)  (cost per mission kill — varies by mission)
+}                                 # <-- these five numbers must sum to 1.0
 
 
 def _check_weights(weights: Dict[str, float]):
@@ -545,7 +609,7 @@ def compute_weighted_scores(results: pd.DataFrame,
             sub["Weighted_Score"] = sum(sub[p] * w for p, w in weights.items())
             rows.append(sub[["mission", "mission_key", "package_size", "cost_scenario",
                               "Lethality", "Survivability", "Sustainability", "Affordability",
-                              "Weighted_Score"]])
+                              "Cost-Effectiveness", "Weighted_Score"]])
     scored = pd.concat(rows, ignore_index=True)
 
     # Mark winner + margin within each (package_size, cost_scenario) group.
@@ -571,7 +635,7 @@ def plot_weighted_decision(scored: pd.DataFrame, out_path: str,
     sub = scored[(scored["package_size"] == package_size)
                  & (scored["cost_scenario"] == cost_scenario)]
 
-    pillars = ["Lethality", "Survivability", "Sustainability", "Affordability"]
+    pillars = ["Lethality", "Survivability", "Sustainability", "Affordability", "Cost-Effectiveness"]
     fig, ax = plt.subplots(figsize=(7, 5))
 
     missions = sub["mission"].tolist()
