@@ -22,8 +22,8 @@ TFF = 0.01; % trapped fuel fraction [W2L1 s.17]
 K_LD = 14; % L/Dmax constant, military jet [W2L1 s.30]
 c_cr = 0.8; % 1/hr, cruise and dash TSFC, low-bypass turbofan [W2L1 s.31]
 c_lt = 0.7; % 1/hr, loiter TSFC, low-bypass turbofan [W2L1 s.31]
-C = -0.16; % Eq. (2) exponent, UAV Recce & UCAV row [Raymer 5th ed. Table 3.1 p.31, via IIT Bombay AE-332 L10 slide 4]
-A = 1.53*2.2046^(-C); % Eq. (2) coefficient: 1.53 is for W0 in kg (units per L10 slide 3), converted for W0 in lb
+C = -0.13; % Eq. (2) exponent, UAV Recce & UCAV row [Raymer 5th ed. Table 3.1 p.31, via IIT Bombay AE-332 L10 slide 4]
+A = 2.34; % Eq. (2) coefficient: 2.34 is for W0 in kg (units per L10 slide 3), converted for W0 in lb
 
 %% Assumptions (replace with the team's frozen baseline)
 AR = 4; % aspect ratio, assumed
