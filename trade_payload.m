@@ -14,6 +14,10 @@ W_av = 1000; % lb, internal avionics and sensors [RFP 3.4.2(a), p.4]
 Q = 500; % production quantity for unit cost [RFP 4(j), p.6]
 
 %% Class values (W2L1)
+%For this section, we're using segment values from W2L1 as a placeholder
+%until we develop a formal mission-segment table as a team, so the values
+%are subject to change.
+
 f_TO = 0.97; % warmup and takeoff weight ratio [W2L1 s.8]
 f_CL = 0.985; % climb weight ratio [W2L1 s.8]
 f_LA = 0.995; % landing weight ratio [W2L1 s.8]
@@ -23,9 +27,11 @@ K_LD = 14; % L/Dmax constant, military jet [W2L1 s.30]
 c_cr = 0.8; % 1/hr, cruise and dash TSFC, low-bypass turbofan [W2L1 s.31]
 c_lt = 0.7; % 1/hr, loiter TSFC, low-bypass turbofan [W2L1 s.31]
 C = -0.13; % Eq. (2) exponent, UAV Recce & UCAV row [Raymer 5th ed. Table 3.1 p.31, via IIT Bombay AE-332 L10 slide 4]
-A = 2.34; % Eq. (2) coefficient: 2.34 is for W0 in kg (units per L10 slide 3), converted for W0 in lb
+A = 2.34; % Eq. (2) coefficient. Taken from Raymer 5th Ed, Table 3.1 Jet Fighter values.
 
-%% Assumptions (replace with the team's frozen baseline)
+%% Assumptions
+%These will change once the CAD model is finished.
+
 AR = 4; % aspect ratio, assumed
 SwetSref = 4; % wetted to reference area ratio, assumed
 M_cr = 0.75; % cruise Mach at 30,000 ft, assumed
