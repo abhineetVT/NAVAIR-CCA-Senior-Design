@@ -1,119 +1,142 @@
 %% THW3 trade study: strike payload requirement
 % Lukas Sonnleitner, Avionics & Controls Lead, Team 11
-% Equation numbers match the report: (1)-(6) in Section 2, (A1)-(A10) in the Appendix.
-% Needs sizeTOGW.m and unitCostDAPCA.m in the same folder. Prints every number used in the report.
+% Needs sizeTOGW.m and unitCostDAPCA.m in the same folder.
 clear; clc; close all;
 
-%% Requirements (RFP, project copy)
-R = 500; % nm, strike combat radius threshold [RFP 3.5.2(a), p.4]
-R_des = 700; % nm, desirable radius, used only to compare payload against radius [RFP 3.5.2(a), p.4]
-R_dash = 50; % nm, sea level dash each way [RFP 3.5.2(b), p.5]
-M_dash = 0.8; % sea level dash Mach [RFP 3.5.2(c), p.5]
-E = 10/60; % hr, loiter before arrestment [RFP 3.3.2(c), p.4]
-W_av = 1000; % lb, internal avionics and sensors [RFP 3.4.2(a), p.4]
-Q = 500; % production quantity for unit cost [RFP 4(j), p.6]
+%% Requirements (RFP)
+% RFP 3.5.2
+R = 500; % nm, combat radius threshold
+R_des = 700; % nm, combat radius desired
+R_dash = 50; % nm, sea level dash each way
+M_dash = 0.8; % sea level dash Mach
+% RFP 3.3.2
+E = 10/60; % hr, loiter before landing
+% RFP 3.4.2
+W_av = 1000; % lb, avionics and sensors
+% RFP 4(j)
+Q = 500; % aircraft produced
 
 %% Class values (W2L1)
-%For this section, we're using segment values from W2L1 as a placeholder
-%until we develop a formal mission-segment table as a team, so the values
-%are subject to change.
+% Placeholder segment values from W2L1 until the team builds its own mission table.
+f_TO = 0.97; % warmup and takeoff
+f_CL = 0.985; % climb
+f_LA = 0.995; % landing
+RFF = 0.05; % reserve fuel
+TFF = 0.01; % trapped fuel
+K_LD = 14; % military jet
+c_cr = 0.8; % 1/hr, cruise and dash TSFC
+c_lt = 0.7; % 1/hr, loiter TSFC
 
-f_TO = 0.97; % warmup and takeoff weight ratio [W2L1 s.8]
-f_CL = 0.985; % climb weight ratio [W2L1 s.8]
-f_LA = 0.995; % landing weight ratio [W2L1 s.8]
-RFF = 0.05; % reserve fuel fraction [W2L1 s.17]
-TFF = 0.01; % trapped fuel fraction [W2L1 s.17]
-K_LD = 14; % L/Dmax constant, military jet [W2L1 s.30]
-c_cr = 0.8; % 1/hr, cruise and dash TSFC, low-bypass turbofan [W2L1 s.31]
-c_lt = 0.7; % 1/hr, loiter TSFC, low-bypass turbofan [W2L1 s.31]
-C = -0.13; % Eq. (2) exponent, UAV Recce & UCAV row [Raymer 5th ed. Table 3.1 p.31, via IIT Bombay AE-332 L10 slide 4]
-A = 2.34; % Eq. (2) coefficient. Taken from Raymer 5th Ed, Table 3.1 Jet Fighter values.
+% Empty weight fit, Raymer 5th ed. Table 3.1, jet fighter
+A = 2.34;
+C = -0.13;
 
-%% Assumptions
-%These will change once the CAD model is finished.
+%% Assumptions (will change once the CAD model is finished)
+AR = 4; % aspect ratio
+SwetSref = 4; % wetted area / reference area
+M_cr = 0.75; % cruise Mach at 30,000 ft
+k_inst = 1.225; % installed electronics: 7.5% cooling (NASA/TM-2017-219627 Eq. 114) + 15% wiring (assumed)
 
-AR = 4; % aspect ratio, assumed
-SwetSref = 4; % wetted to reference area ratio, assumed
-M_cr = 0.75; % cruise Mach at 30,000 ft, assumed
-k_inst = 1.225; % Eq. (A5) installed electronics: 1 + 0.075 cooling [NASA/TM-2017-219627 Eq.114] + 0.15 wiring (assumed)
+%% Aerodynamics and speeds (W2L1)
+LDmax = K_LD*sqrt(AR/SwetSref);
+LD_cr = 0.866*LDmax; % cruise
+LD_lt = LDmax; % loiter
+LD_da = 0.5*LDmax; % sea level dash, assumed
+V_cr = M_cr*994.8*0.5925; % kt, speed of sound 994.8 ft/s at 30,000 ft
+V_da = M_dash*1116.4*0.5925; % kt, speed of sound 1116.4 ft/s at sea level
 
-%% Aerodynamics and speeds
-LDmax = K_LD*sqrt(AR/SwetSref); % Eq. (A1) [W2L1 s.30]
-LD_cr = 0.866*LDmax; % Eq. (A2) jet cruise at 86.6% of L/Dmax [W2L1 s.13]
-LD_lt = LDmax; % Eq. (A2) jet loiter at L/Dmax [W2L1 s.14]
-LD_da = 0.5*LDmax; % Eq. (A2) sea level dash well below L/Dmax, assumed
-V_cr = M_cr*994.8*0.5925; % Eq. (A3) kt, a = 994.8 ft/s at 30,000 ft [W2L1 s.13], 0.5925 kt per ft/s
-V_da = M_dash*1116.4*0.5925; % Eq. (A3) kt, a = 1116.4 ft/s at sea level (standard atmosphere)
+%% Fuel fraction (Breguet range and endurance)
+dash = exp(-R_dash*c_cr/(V_da*LD_da));
+loiter = exp(-E*c_lt/LD_lt);
 
-%% Mission fuel fraction and sizing
-cruise = @(d) exp(-d*c_cr/(V_cr*LD_cr)); % Eq. (4) Breguet range for a d nm cruise leg [W2L1 s.13]
-dash = exp(-R_dash*c_cr/(V_da*LD_da)); % Eq. (4) Breguet range for one 50 nm sea level dash
-loiter = exp(-E*c_lt/LD_lt); % Eq. (5) Breguet endurance [W2L1 s.14]
-WfW = @(r) (1 + RFF + TFF)*(1 - f_TO*f_CL*cruise(r - R_dash)^2*dash^2*loiter*f_LA); % Eq. (3) with mission product (A4) [W2L1 s.17]
-W0_of = @(P, r) sizeTOGW(P, WfW(r), A, C); % Eq. (1) with (2): full re-size for payload P at radius r
+cruise = exp(-(R - R_dash)*c_cr/(V_cr*LD_cr)); % 500 nm mission
+WfW = (1 + RFF + TFF)*(1 - f_TO*f_CL*cruise^2*dash^2*loiter*f_LA);
 
-%% Payloads (lb)
-W_GBU = 204; % GBU-53/B [Raytheon SDB II fact sheet, p.2]
-W_BRU = 330; % BRU-61/A four-place rack, empty [Cobham BRU-61/A brochure, p.1]
-W_jam = 220; % ALQ-214 class jammer: receiver 36 + modulator 40 + dual transmitter 57 + preamp 14 + E/F rack 73 [L3Harris ALQ-214 sell sheet, p.2]
-W_MALD = 300; % MALD-J, upper bound: "less than 300 pounds" is stated for the MALD family [RTX MALD page, How it works]
-P_thr = k_inst*W_av + W_BRU + 4*W_GBU; % Eq. (A6) threshold: RFP strike load [RFP 3.4.2, p.4]
-P_des = P_thr + k_inst*W_jam + 2*W_MALD; % Eq. (A6) desired: strike + organic EW kit, team-derived [RFP 3.1(a)(a); PRM 2 slide 7]
-P_swp = k_inst*(W_av + W_jam) + 2*W_MALD; % Eq. (A6) EW kit carried instead of the bombs and rack
+cruise7 = exp(-(R_des - R_dash)*c_cr/(V_cr*LD_cr)); % 700 nm mission
+WfW7 = (1 + RFF + TFF)*(1 - f_TO*f_CL*cruise7^2*dash^2*loiter*f_LA);
+
+%% Payloads (lb, manufacturer spec sheets)
+W_GBU = 204; % GBU-53/B
+W_BRU = 330; % BRU-61/A rack
+W_jam = 220; % ALQ-214 class jammer
+W_MALD = 300; % MALD-J
+
+P_thr = k_inst*W_av + W_BRU + 4*W_GBU; % threshold: RFP strike load
+P_des = P_thr + k_inst*W_jam + 2*W_MALD; % desired: strike + EW kit
+P_swp = k_inst*(W_av + W_jam) + 2*W_MALD; % EW kit instead of the bombs
 
 %% Unit cost (DAPCA IV) [AOE module A6, slides 13-15]
-TW = 0.6; % thrust to weight, sizes the engine for cost only, assumed
-T_R = 3000; % deg R, turbine inlet temperature, assumed
-QD = 4; % flight test aircraft, assumed equal to the MQ-25 development contract (four aircraft) [Boeing release, Aug. 30, 2018]
-cost = @(W0, W_elec) unitCostDAPCA(A*W0^C*W0, TW*W0, M_dash, T_R, W_elec, V_da, Q, QD); % Eq. (6), empty weight from Eq. (2), $M FY2024
+%Used AI to determined best-use of the equations found in the slides, as
+%this specific material has not been covered in class but was necessary for
+%to include a quantitative cost trade-study
+
+%Assumed values until propulsion model is finalized, and engine selected.
+TW = 0.6; % thrust to weight
+T_R = 3000; % deg R, turbine inlet temperature
+QD = 4; % flight test aircraft, assumed equal to the MQ-25 development contract (four aircraft)
+cost = @(W0, W_elec) unitCostDAPCA(A*W0^C*W0, TW*W0, M_dash, T_R, W_elec, V_da, Q, QD);
 
 %% Results
-W_thr = W0_of(P_thr, R);
-W_des = W0_of(P_des, R);
-W_swp = W0_of(P_swp, R);
+W_thr = sizeTOGW(P_thr, WfW, A, C);
+W_des = sizeTOGW(P_des, WfW, A, C);
+W_swp = sizeTOGW(P_swp, WfW, A, C);
+W_700 = sizeTOGW(P_thr, WfW7, A, C);
+
 C_thr = cost(W_thr, W_av);
-C_des = cost(W_des, W_av + W_jam); % includes buying a jammer for every aircraft
-C_des_af = cost(W_des, W_av); % airframe growth only, no jammer
-fprintf('Threshold: P = %.0f lb, W0 = %.0f lb, We/W0 = %.3f, cost = $%.2fM\n', P_thr, W_thr, A*W_thr^C, C_thr);
-fprintf('Desired: P = %.0f lb, W0 = %.0f lb (%+.1f%%), cost = $%.2fM (%+.1f%%; airframe only %+.1f%%)\n', ...
-  P_des, W_des, 100*(W_des/W_thr - 1), C_des, 100*(C_des/C_thr - 1), 100*(C_des_af/C_thr - 1));
-fprintf('EW kit instead of bombs: P = %.0f lb (below threshold %.0f lb)\n', P_swp, P_thr);
+C_des = cost(W_des, W_av + W_jam); % jammer bought for every aircraft
 
-%% Sensitivity metrics, Eq. (A10)
-P = 1000:100:4500; % range studied, lb
-W0 = arrayfun(@(p) W0_of(p, R), P);
-UC = arrayfun(@(w) cost(w, W_av), W0);
-dW = diff(W0)./diff(P); % slope dW0/dP across the range
-W7 = W0_of(P_thr, R_des); % threshold payload at 700 nm
-fprintf('Slope at threshold: %.2f lb/lb, $%.2fM per 1,000 lb\n', (W0_of(P_thr + 100, R) - W_thr)/100, 10*(cost(W0_of(P_thr + 100, R), W_av) - C_thr));
-fprintf('Slope across range: %.2f to %.2f lb/lb\n', dW(1), dW(end));
-fprintf('Elasticity threshold to desired: W0 %.2f, cost %.2f\n', (W_des/W_thr - 1)/(P_des/P_thr - 1), (C_des/C_thr - 1)/(P_des/P_thr - 1));
-fprintf('Radius 500 to 700 nm: W0 %+.1f%%, elasticity %.2f; payload slope at 700 nm %.2f lb/lb\n', ...
-  100*(W7/W_thr - 1), (W7/W_thr - 1)/(R_des/R - 1), (W0_of(P_thr + 100, R_des) - W7)/100);
-fprintf('Sizing denominator at threshold: %.2f\n', 1 - A*W_thr^C - WfW(R));
-fprintf('X-47B check: Eq. (2) gives %.3f vs actual 14,000/44,567 = %.3f [VT AOE X-47 presentation, slide 5]\n', A*44567^C, 14000/44567);
+%Used AI to determine best way of expressing important values
+fprintf('Threshold: P = %.0f lb, W0 = %.0f lb, cost = $%.1fM\n', P_thr, W_thr, C_thr);
+fprintf('Desired: P = %.0f lb, W0 = %.0f lb, cost = $%.1fM\n', P_des, W_des, C_des);
+fprintf('Change: W0 %+.1f%%, cost %+.1f%%\n', 100*(W_des/W_thr - 1), 100*(C_des/C_thr - 1));
+fprintf('EW kit instead of bombs: P = %.0f lb, W0 = %.0f lb\n', P_swp, W_swp);
 
-%% Plot: payload requirement vs MoMs, with threshold, desired, baseline, recommended marked
-range = @(x) max(x) - min(x);
-Y = {W0, UC};
-Ym = {[W_thr W_des], [C_thr C_des]};
-ylab = {'Takeoff gross weight (lb)', 'Unit cost, $M (FY2024)'};
-ttl = {sprintf('TOGW at 500 nm: threshold to desired %+.0f%%', 100*(W_des/W_thr - 1)), ...
-  sprintf('Unit cost (MoM-06): threshold to desired %+.0f%%', 100*(C_des/C_thr - 1))};
-figure('Position', [100 100 1100 420]);
-for k = 1:2
-  subplot(1, 2, k); hold on; grid on; box on;
-  yl = [min([Y{k} Ym{k}]) max([Y{k} Ym{k}])] + [-0.05 0.08]*range([Y{k} Ym{k}]);
-  plot(P, Y{k}, 'k-', 'LineWidth', 1.6);
-  h1 = plot([P_thr P_thr], yl, 'b--', 'LineWidth', 1.2);
-  h2 = plot([P_des P_des], yl, 'r-.', 'LineWidth', 1.2);
-  h3 = plot(P_thr, Ym{k}(1), 'ks', 'MarkerSize', 11, 'MarkerFaceColor', [.6 .6 .6]);
-  h4 = plot(P_thr, Ym{k}(1), 'p', 'MarkerSize', 16, 'Color', [0 .5 0], 'MarkerFaceColor', [.2 .8 .2]);
-  plot(P_des, Ym{k}(2), 'o', 'MarkerSize', 7, 'Color', [.7 0 0], 'MarkerFaceColor', [1 .5 .5]);
-  ylim(yl); ylabel(ylab{k}); title(ttl{k});
-  xlabel('Strike payload: stores + installed mission systems (lb)');
+%% Sensitivity
+slope = (W_des - W_thr)/(P_des - P_thr); % lb TOGW per lb payload, threshold to desired
+e_P = (W_des/W_thr - 1)/(P_des/P_thr - 1); % payload elasticity
+e_R = (W_700/W_thr - 1)/(R_des/R - 1); % radius elasticity
+
+fprintf('Slope: %.1f lb per lb\n', slope);
+fprintf('Elasticity: payload %.2f, radius %.2f\n', e_P, e_R);
+fprintf('500 to 700 nm: W0 %+.1f%%\n', 100*(W_700/W_thr - 1));
+
+%% Payload sweep
+P = 1000:100:4500;
+for i = 1:length(P)
+    W0(i) = sizeTOGW(P(i), WfW, A, C);
+    UC(i) = cost(W0(i), W_av);
 end
-subplot(1, 2, 1);
-h5 = plot(P_swp, W_swp, 'd', 'MarkerSize', 8, 'Color', [0 0 .7], 'MarkerFaceColor', [.4 .6 1]);
-legend([h1 h2 h3 h4 h5], {'RFP threshold', 'Desired (+ organic EW)', 'Baseline', 'Recommended', 'EW kit instead of bombs'}, 'Location', 'northwest', 'FontSize', 8);
+
+%% Plot
+% Used AI to help with plot formatting.
+figure('Position', [100 100 1100 420]);
+
+subplot(1, 2, 1); hold on; grid on; box on;
+plot(P, W0, 'k-', 'LineWidth', 1.5, 'HandleVisibility', 'off');
+plot(P_thr, W_thr, 'ks', 'MarkerSize', 11, 'MarkerFaceColor', [.6 .6 .6], 'DisplayName', 'Baseline');
+plot(P_thr, W_thr, 'p', 'MarkerSize', 16, 'Color', [0 .5 0], 'MarkerFaceColor', [.2 .8 .2], 'DisplayName', 'Recommended');
+plot(P_swp, W_swp, 'd', 'MarkerSize', 8, 'Color', [0 0 .7], 'MarkerFaceColor', [.4 .6 1], 'DisplayName', 'EW kit instead of bombs');
+yl = ylim;
+plot([P_thr P_thr], yl, 'b--', 'LineWidth', 1.2, 'DisplayName', 'RFP threshold');
+plot([P_des P_des], yl, 'r-.', 'LineWidth', 1.2, 'DisplayName', 'Desired (+ EW)');
+plot(P_des, W_des, 'o', 'MarkerSize', 7, 'Color', [.7 0 0], 'MarkerFaceColor', [1 .5 .5], 'HandleVisibility', 'off');
+ylim(yl);
+xlabel('Strike payload: stores + installed mission systems (lb)');
+ylabel('Takeoff gross weight (lb)');
+title(sprintf('TOGW at 500 nm: threshold to desired %+.0f%%', 100*(W_des/W_thr - 1)));
+legend('Location', 'northwest', 'FontSize', 8);
+
+subplot(1, 2, 2); hold on; grid on; box on;
+plot(P, UC, 'k-', 'LineWidth', 1.5);
+plot(P_thr, C_thr, 'ks', 'MarkerSize', 11, 'MarkerFaceColor', [.6 .6 .6]);
+plot(P_thr, C_thr, 'p', 'MarkerSize', 16, 'Color', [0 .5 0], 'MarkerFaceColor', [.2 .8 .2]);
+yl = ylim;
+plot([P_thr P_thr], yl, 'b--', 'LineWidth', 1.2);
+plot([P_des P_des], yl, 'r-.', 'LineWidth', 1.2);
+plot(P_des, C_des, 'o', 'MarkerSize', 7, 'Color', [.7 0 0], 'MarkerFaceColor', [1 .5 .5]);
+ylim(yl);
+xlabel('Strike payload: stores + installed mission systems (lb)');
+ylabel('Unit cost, $M (FY2024)');
+title(sprintf('Unit cost (MoM-06): threshold to desired %+.0f%%', 100*(C_des/C_thr - 1)));
+
 print('-dpng', '-r150', 'fig_payload_trade_lsonnleitner.png');

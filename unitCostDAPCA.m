@@ -1,4 +1,9 @@
 function UC = unitCostDAPCA(We, T_SLS, M_max, T_R, W_elec, S, Q, QD)
+%Used AI to compile all necessary equations given the slides, as this
+%specific topic hasn't been covered in class yet.
+%References to equations are to a separate document where the equations are
+%written and the sources stated in detail.
+
 % Average unit cost, $M FY2024 = (development + production)/Q, Eq. (6)
 % DAPCA IV as taught in AOE module A6 "Cost Considerations" (Raymer Ch. 18; Nicolai & Carichner Ch. 24)
 % We empty weight (lb), S max speed (kt), Q total aircraft, QD flight test aircraft
