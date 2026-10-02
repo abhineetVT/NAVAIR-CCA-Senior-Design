@@ -18,8 +18,8 @@ p.f_TO = 0.97; p.f_CL = 0.985; p.f_LA = 0.995;
 p.RFF  = 0.05; p.TFF  = 0.01;                  
 p.K_LD = 14;                                    
 p.c_cr = 0.8;  p.c_lt = 0.7;                     
-p.C    = -0.16;                                 
-p.A    = 1.53*2.2046^(-p.C);                    
+p.C    = -0.13;                                 
+p.A    = 2.34;                    
 
 % Assumptions Lukas flagged (replace with frozen baseline)
 p.AR       = 4;     % aspect ratio
