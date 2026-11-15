@@ -1,0 +1,218 @@
+{
+  "geometry": {
+    "AR": 5.5,
+    "taper_ratio": 0.25,
+    "sweep_c4_deg": 32,
+    "thickness_ratio_root": 0.08,
+    "thickness_ratio_tip": 0.06,
+    "kappaA": 0.95,
+    "twist_deg": -2,
+    "incidence_deg": 1,
+    "dihedral_deg": -2,
+    "dash_mach": 0.85,
+    "dash_CL": 0.25,
+    "dash_margin_required": 0.02,
+    "tail_type": "twin_vertical",
+    "horizontal_tail": {
+      "volume_coefficient": 0.45,
+      "arm_ft": 18,
+      "AR": 4.0,
+      "taper_ratio": 0.35,
+      "thickness_ratio": 0.07,
+      "sweep_c4_deg": 35
+    },
+    "vertical_tail": {
+      "volume_coefficient": 0.055,
+      "arm_ft": 18,
+      "AR": 1.6,
+      "taper_ratio": 0.35,
+      "thickness_ratio": 0.07,
+      "sweep_c4_deg": 38
+    },
+    "twin_vertical": {
+      "toe_deg": 15
+    },
+    "v_tail": {
+      "cant_deg": 40
+    },
+    "fuselage": {
+      "width_ft": 5.0,
+      "height_ft": 4.0,
+      "nose_length_ft": 6,
+      "constant_length_ft": 16,
+      "tailcone_length_ft": 8,
+      "tailcone_end_width_ft": 2.5,
+      "tailcone_end_height_ft": 2.0
+    },
+    "nacelle": {
+      "diameter_ft": 2.8,
+      "length_over_engine_length": 1.15
+    },
+    "landing_gear": {
+      "l_n_over_l_d": 0.3,
+      "l_m_over_l_d": 0.7
+    },
+    "stores": {
+      "configuration": "internal",
+      "n_stores": 4,
+      "Dq_each_ft2": 0.25,
+      "bay_length_ft": 12,
+      "bay_width_ft": 2.5,
+      "bay_depth_ft": 1.2
+    },
+    "spot_factor_max": 0.8,
+    "fold_fraction": 1.0,
+    "spot_reference_area_ft2": 1540,
+    "fuel": {
+      "density_lb_per_ft3": 50.1,
+      "wing_tank_fraction": 0.7,
+      "fuselage_tank_fraction": 0.2
+    }
+  },
+  "propulsion": {
+    "engine_type": "low_bypass_turbofan",
+    "n_engines": 1,
+    "T_SL_each_lbf": 13000,
+    "bypass_ratio": 0.4,
+    "TSFC_sl_dry_per_hr": 0.78,
+    "has_afterburner": true,
+    "engine_TW_ratio": 5.3,
+    "engine_len_k": 0.29,
+    "lapse_sigma_exp": 0.7,
+    "lapse_mach_a": 0.25,
+    "lapse_mach_b": 0.4,
+    "engine_mode": "fixed",
+    "TSFC_sl_ab_per_hr": 1.75,
+    "ab_thrust_ratio": 1.69
+  },
+  "weights": {
+    "structure_frac_of_WTO": 0.27,
+    "systems_frac_of_WTO": 0.13,
+    "fuel_system_frac_of_WTO": 0.015,
+    "pylon_weight_each_lbf": 60,
+    "bay_structure_density_lbf_per_ft3": 8,
+    "store_weight_each_lbf": 204,
+    "fixed_payload_lbf": 1000,
+    "reserve_fuel_frac_of_loaded": 0.25
+  },
+  "constraints": {
+    "conditions": [
+      {
+        "name": "cruise_30kft",
+        "type": "cruise",
+        "altitude_ft": 30000,
+        "mach": 0.7,
+        "stores_present": true
+      },
+      {
+        "name": "dash_M0p8_30kft_RFP",
+        "type": "dash",
+        "altitude_ft": 30000,
+        "mach": 0.8,
+        "stores_present": true,
+        "rating": "ab"
+      },
+      {
+        "name": "dash_M0p85_30kft_teamgoal",
+        "type": "dash",
+        "altitude_ft": 30000,
+        "mach": 0.85,
+        "stores_present": true,
+        "rating": "ab"
+      },
+      {
+        "name": "dash_M0p8_SL_strike",
+        "type": "dash",
+        "altitude_ft": 0,
+        "mach": 0.8,
+        "stores_present": true,
+        "rating": "ab"
+      },
+      {
+        "name": "climb_SL",
+        "type": "climb",
+        "altitude_ft": 0,
+        "mach": 0.3,
+        "G": 0.04,
+        "oei": false,
+        "stores_present": true
+      },
+      {
+        "name": "catapult_takeoff",
+        "type": "takeoff",
+        "altitude_ft": 0,
+        "distance_ft": 300,
+        "cat_credit": 0.5,
+        "stores_present": true,
+        "rating": "ab"
+      },
+      {
+        "name": "arrested_landing",
+        "type": "landing",
+        "altitude_ft": 0,
+        "V_app_kts": 145,
+        "approach_margin": 1.1,
+        "stores_present": true
+      }
+    ]
+  },
+  "missions": {
+    "carrier_strike": {
+      "description": "RFP strike: 500 nm radius, 50 nm SL dashes in/out at M0.8, 10 min loiter at 10,000 ft, two landing attempts.",
+      "segments": [
+        {
+          "type": "takeoff"
+        },
+        {
+          "type": "climb",
+          "alt_ft": 30000,
+          "mach": 0.7
+        },
+        {
+          "type": "cruise",
+          "alt_ft": 30000,
+          "mach": 0.7,
+          "distance_nm": 450
+        },
+        {
+          "type": "dash",
+          "alt_ft": 0,
+          "mach": 0.8,
+          "distance_nm": 50,
+          "rating": "auto"
+        },
+        {
+          "type": "dash",
+          "alt_ft": 0,
+          "mach": 0.8,
+          "distance_nm": 50,
+          "releases_stores": true,
+          "rating": "auto"
+        },
+        {
+          "type": "climb",
+          "alt_ft": 30000,
+          "mach": 0.7
+        },
+        {
+          "type": "cruise",
+          "alt_ft": 30000,
+          "mach": 0.7,
+          "distance_nm": 450
+        },
+        {
+          "type": "loiter",
+          "alt_ft": 10000,
+          "mach": 0.45,
+          "time_min": 10
+        },
+        {
+          "type": "landing"
+        },
+        {
+          "type": "landing"
+        }
+      ]
+    }
+  }
+}
