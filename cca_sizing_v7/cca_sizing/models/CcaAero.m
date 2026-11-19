@@ -158,12 +158,13 @@ classdef CcaAero < AerodynamicsBase
             g = obj.geom;
             M = state.mach;
             cl4 = cosd(g.sweep_c4_deg);
-            Mdd_at_CL = g.kappaA/cl4 - g.tc_mean/cl4^2 - CL/(10*cl4^3);
-            if M < Mdd_at_CL
-                CDwave = 0;
-            else
-                CDwave = 20*(M - Mdd_at_CL)^4;
-            end
+           Mdd_at_CL = g.kappaA/cl4 - g.tc_mean/cl4^2 - CL/(10*cl4^3);
+           Mcr_at_CL = Mdd_at_CL - (0.1/80)^(1/3);     % add this line
+           if M <= Mcr_at_CL                           % was: if M < Mdd_at_CL
+              CDwave = 0;
+           else
+              CDwave = 20*(M - Mcr_at_CL)^4;          % was: 20*(M - Mdd_at_CL)^4
+           end
         end
 
         %% ---------------- Store drag increment ---------------------------
