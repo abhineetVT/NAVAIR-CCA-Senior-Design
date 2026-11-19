@@ -1,0 +1,275 @@
+//==============================================================================
+// X2_build.vspscript  --  OpenVSP model of Concept X-2 (single-engine, swept
+// wing with fold, V-tail, ventral inlet, hybrid carriage: 2 SDB-II on pylons).
+//
+// Run:  OpenVSP GUI -> File -> Run Script... -> X2_build.vspscript
+//   or: vspscript -script X2_build.vspscript
+//
+// All dimensions in FEET, taken from the converged X-2 run of the TEAM sizing
+// code (cca_sizing/run_x2.m -> x2_team_results.json). If the sizing changes,
+// change only the constants in the first block below.
+// Tail: horizontal stabilizers + twin canted fins (F35_TAIL = true, default,
+// writes X2.vsp3). Set F35_TAIL = false for the original V-tail (X2_Vtail.vsp3).
+// Writes X2.vsp3 and prints the CompGeom wetted areas for the report table.
+//==============================================================================
+
+// ---------------- Sizing outputs (edit these) ---------------------------------
+const double S_REF      = 144.54;   // wing reference area [ft^2] (check vs TotalArea)
+const double B_HALF     = 12.023;    // semi-span
+const double C_ROOT     = 9.248;    // root chord at centerline
+const double C_TIP      = 2.774;    // tip chord
+const double Y_FOLD     = 7.815;    // fold hinge station from centerline (65% semi-span)
+const double SWEEP_LE   = 35.0;     // leading-edge sweep [deg]
+const double TC_WING    = 0.10;     // NACA 65A210
+const double X_WING     = 14.0;     // wing apex (root LE) station from nose
+const double Z_WING     = 0.0;      // mid-wing
+
+const double L_FUS      = 43.0;
+const double W_FUS      = 5.5;
+const double H_FUS      = 5.0;
+
+const double VT_SPAN    = 4.955;    // V-tail panel span (along the panel)
+const double VT_CROOT   = 4.588;
+const double VT_CTIP    = 1.606;
+const double VT_SWEEP   = 40.0;
+const double VT_DIHED   = 33.7;     // atan(sqrt(S_v/S_h)), Purser-Campbell (NACA 823)
+const double X_VTAIL    = 37.60;     // gives a 20.2 ft MAC(c/4)-to-MAC(c/4) tail arm
+const double Z_VTAIL    = 1.2;
+
+const double Y_PYLON    = 5.5;      // pylon / store station (inboard of the fold)
+const double X_PYLON    = 18.5;
+const double PYL_CHORD  = 4.5;
+const double PYL_DEPTH  = 0.8;
+const double ST_LEN     = 70.0/12.0;  // SDB-II, 70 in x 7 in
+const double ST_DIA     = 7.0/12.0;
+
+// --- Alternative F-35-style tail = team tail_type "twin_vertical": same HT
+//     area the V-tail must project; fins = 0.85 x vertical requirement
+//     (team CcaGeom rule). Report Fig. 3: -20 lb, -0.1% TOGW ---
+const double HT_AREA    = 21.23;     // total horizontal tail area, both sides (theoretical)
+const double HT_SPAN    = 9.215;     // tip to tip (AR 4.0, team horizontal_tail.AR)
+const double HT_CROOT   = 3.413;
+const double HT_CTIP    = 1.194;
+const double HT_SWEEP   = 38.0;
+const double X_HT       = 37.93;     // HT MAC(c/4) at the same 20.2 ft tail arm
+const double Z_HT       = -0.3;
+
+const double FIN_CANT   = 20.0;     // outward cant from vertical, F-35-like
+const double FIN_SPAN   = 2.359;     // along the fin; each fin 4.3 ft^2 so the two
+const double FIN_CROOT  = 2.688;     //   fins' vertical projection = 8.0 ft^2
+const double FIN_CTIP   = 0.941;
+const double FIN_SWEEP  = 40.0;
+const double X_FIN      = 37.60;
+const double Y_FIN      = 0.9;      // fin roots sit on the upper aft fuselage
+const double Z_FIN      = 1.35;     //   (body there is ~3.7 x 3.3 ft), slightly sunk in
+
+const bool   FOLDED     = false;    // true -> outer panels rotated 90 deg up (deck spot)
+const bool   F35_TAIL   = true;     // true  -> horizontal stabilizers + twin canted fins (F-35 style)
+                                    // false -> original X-2 V-tail only
+
+// ---------------- Helpers -----------------------------------------------------
+void SetSixSeries(string xsec_surf, int idx, double tc, double cli)
+{
+    // NACA 6-series section, 65A family (vsp::SIX_SERIES_TYPE enum).
+    ChangeXSecShape(xsec_surf, idx, XS_SIX_SERIES);
+    string xs = GetXSec(xsec_surf, idx);
+    SetParmVal(GetXSecParm(xs, "Series"), SIX_SERIES_65A);
+    SetParmVal(GetXSecParm(xs, "ThickChord"), tc);
+    SetParmVal(GetXSecParm(xs, "IdealCl"), cli);
+}
+
+void SetFourSeries(string xsec_surf, int idx, double tc)
+{
+    ChangeXSecShape(xsec_surf, idx, XS_FOUR_SERIES);
+    string xs = GetXSec(xsec_surf, idx);
+    SetParmVal(GetXSecParm(xs, "Camber"), 0.0);
+    SetParmVal(GetXSecParm(xs, "ThickChord"), tc);
+}
+
+void SetPanel(string gid, int sec, double span, double croot, double ctip,
+              double sweep, double dihedral)
+{
+    SetDriverGroup(gid, sec, SPAN_WSECT_DRIVER, ROOTC_WSECT_DRIVER, TIPC_WSECT_DRIVER);
+    string grp = "XSec_" + sec;
+    SetParmVal(gid, "Span",           grp, span);
+    SetParmVal(gid, "Root_Chord",     grp, croot);
+    SetParmVal(gid, "Tip_Chord",      grp, ctip);
+    SetParmVal(gid, "Sweep",          grp, sweep);
+    SetParmVal(gid, "Sweep_Location", grp, 0.0);     // sweep defined at the LE
+    SetParmVal(gid, "Dihedral",       grp, dihedral);
+}
+
+void SetLoc(string gid, double x, double y, double z)
+{
+    SetParmVal(gid, "X_Rel_Location", "XForm", x);
+    SetParmVal(gid, "Y_Rel_Location", "XForm", y);
+    SetParmVal(gid, "Z_Rel_Location", "XForm", z);
+}
+
+// Body built from stations (x/L, width, height). First station is a point
+// when its width is zero. Locations are set in several passes because OpenVSP
+// clamps each cross-section between its neighbours.
+void BuildBody(string gid, double len, array<double> xl, array<double> w, array<double> h)
+{
+    SetParmVal(gid, "Length", "Design", len);
+    string surf = GetXSecSurf(gid, 0);
+    int n = int(xl.length());
+    while (GetNumXSec(surf) < n) { InsertXSec(gid, GetNumXSec(surf) - 2, XS_ELLIPSE); Update(); }
+    for (int i = 0; i < n; i++)
+    {
+        if (w[i] <= 0.0) { ChangeXSecShape(surf, i, XS_POINT); }
+        else
+        {
+            ChangeXSecShape(surf, i, XS_ELLIPSE);
+            string xs = GetXSec(surf, i);
+            SetParmVal(GetXSecParm(xs, "Ellipse_Width"),  w[i]);
+            SetParmVal(GetXSecParm(xs, "Ellipse_Height"), h[i]);
+        }
+    }
+    // Close open ends (nozzle exit, inlet face, store base) with flat caps so the
+    // body is watertight; CompGeom's inside/outside test needs closed surfaces.
+    if (w[0] > 0.0)     { SetParmVal(gid, "CapUMinOption", "EndCap", FLAT_END_CAP); }
+    if (w[n - 1] > 0.0) { SetParmVal(gid, "CapUMaxOption", "EndCap", FLAT_END_CAP); }
+    Update();
+    for (int pass = 0; pass < 4; pass++)
+    {
+        for (int i = 1; i < n - 1; i++)
+        {
+            string xs = GetXSec(surf, i);
+            SetParmVal(GetXSecParm(xs, "XLocPercent"), xl[i]);
+        }
+        Update();
+    }
+}
+
+// ---------------- Model -------------------------------------------------------
+void main()
+{
+    ClearVSPModel();
+    Update();
+
+    //--- Fuselage: 43 x 5.5 x 5.0 ft, ends at the F414 nozzle (~31 in) --------
+    string fus = AddGeom("FUSELAGE", "");
+    SetGeomName(fus, "Fuselage");
+    array<double> fx = {0.00, 0.08, 0.20, 0.30, 0.62, 0.86, 1.00};
+    array<double> fw = {0.00, 2.60, 4.60, W_FUS, W_FUS, 4.20, 2.60};
+    array<double> fh = {0.00, 2.20, 4.20, H_FUS, H_FUS, 3.60, 2.60};
+    BuildBody(fus, L_FUS, fx, fw, fh);
+
+    //--- Ventral inlet fairing: lip at x = 9 ft, fairs out at the engine face --
+    string inl = AddGeom("FUSELAGE", "");
+    SetGeomName(inl, "Ventral_Inlet");
+    array<double> ix = {0.00, 0.25, 0.50, 0.75, 1.00};
+    array<double> iw = {3.00, 3.00, 2.80, 2.20, 1.20};
+    array<double> ih = {1.60, 1.60, 1.40, 1.00, 0.40};
+    BuildBody(inl, 17.0, ix, iw, ih);
+    SetLoc(inl, 9.0, 0.0, -0.5 * H_FUS + 0.3);
+
+    //--- Wing: two panels, hinge at Y_FOLD, NACA 65A210 -----------------------
+    string wing = AddGeom("WING", "");
+    SetGeomName(wing, "Wing");
+    InsertXSec(wing, 1, XS_SIX_SERIES);          // root panel + outer (folding) panel
+    double c_fold = C_ROOT - (C_ROOT - C_TIP) * Y_FOLD / B_HALF;
+    SetPanel(wing, 1, Y_FOLD,          C_ROOT, c_fold, SWEEP_LE, 0.0);
+    SetPanel(wing, 2, B_HALF - Y_FOLD, c_fold, C_TIP,  SWEEP_LE, FOLDED ? 90.0 : 0.0);
+    string wsurf = GetXSecSurf(wing, 0);
+    for (int i = 0; i < GetNumXSec(wsurf); i++) { SetSixSeries(wsurf, i, TC_WING, 0.2); }
+    SetLoc(wing, X_WING, 0.0, Z_WING);
+
+    string vt = "";
+    string ht = "";
+    if (!F35_TAIL)
+    {
+        //--- V-tail: two ruddervator panels at 38.6 deg dihedral --------------
+        vt = AddGeom("WING", "");
+        SetGeomName(vt, "V_Tail");
+        SetPanel(vt, 1, VT_SPAN, VT_CROOT, VT_CTIP, VT_SWEEP, VT_DIHED);
+        string vsurf = GetXSecSurf(vt, 0);
+        for (int i = 0; i < GetNumXSec(vsurf); i++) { SetFourSeries(vsurf, i, 0.05); }
+        SetLoc(vt, X_VTAIL, 0.0, Z_VTAIL);
+    }
+    else
+    {
+        //--- Horizontal stabilators -----------------------------------------
+        ht = AddGeom("WING", "");
+        SetGeomName(ht, "Horiz_Stab");
+        SetPanel(ht, 1, 0.5 * HT_SPAN, HT_CROOT, HT_CTIP, HT_SWEEP, 0.0);
+        string hsurf = GetXSecSurf(ht, 0);
+        for (int i = 0; i < GetNumXSec(hsurf); i++) { SetFourSeries(hsurf, i, 0.05); }
+        SetLoc(ht, X_HT, 0.0, Z_HT);
+
+        //--- Twin vertical fins, canted outward (mirrored by XZ symmetry) ---
+        vt = AddGeom("WING", "");
+        SetGeomName(vt, "Twin_Fins");
+        SetPanel(vt, 1, FIN_SPAN, FIN_CROOT, FIN_CTIP, FIN_SWEEP, 90.0 - FIN_CANT);
+        string fsurf = GetXSecSurf(vt, 0);
+        for (int i = 0; i < GetNumXSec(fsurf); i++) { SetFourSeries(fsurf, i, 0.05); }
+        SetLoc(vt, X_FIN, Y_FIN, Z_FIN);
+    }
+
+    //--- Pylons: slab bodies joining the wing lower surface to each store ---
+    //    (built as bodies so CompGeom trims them correctly against wing and store)
+    double c_pyl  = C_ROOT - (C_ROOT - C_TIP) * Y_PYLON / B_HALF;
+    double z_wlow = Z_WING - 0.5 * TC_WING * c_pyl;         // wing lower surface at the pylon
+    string pyl = AddGeom("FUSELAGE", "");
+    SetGeomName(pyl, "Pylons");
+    array<double> px = {0.00, 0.25, 0.50, 0.75, 1.00};
+    array<double> pw = {0.10, 0.45, 0.45, 0.45, 0.10};      // 10% thick on a 4.5 ft chord
+    array<double> ph = {PYL_DEPTH + 0.4, PYL_DEPTH + 0.4, PYL_DEPTH + 0.4, PYL_DEPTH + 0.4, PYL_DEPTH + 0.4};
+    BuildBody(pyl, PYL_CHORD, px, pw, ph);                  // 0.2 ft overlap into wing and store
+    SetParmVal(pyl, "Sym_Planar_Flag", "Sym", SYM_XZ);
+    SetLoc(pyl, X_PYLON, Y_PYLON, z_wlow - 0.5 * PYL_DEPTH);
+
+    //--- External SDB-II stores (2): 70 in long, 7 in diameter --------------
+    string st = AddGeom("FUSELAGE", "");
+    SetGeomName(st, "SDB_II_ext");
+    array<double> sx = {0.00, 0.12, 0.30, 0.85, 1.00};
+    array<double> sw = {0.00, 0.42, ST_DIA, ST_DIA, 0.35};  // ogive nose, blunt base
+    array<double> sh = {0.00, 0.42, ST_DIA, ST_DIA, 0.35};
+    BuildBody(st, ST_LEN, sx, sw, sh);
+    SetParmVal(st, "Sym_Planar_Flag", "Sym", SYM_XZ);
+    SetLoc(st, X_PYLON - 0.6, Y_PYLON, z_wlow - PYL_DEPTH - 0.5 * ST_DIA);
+
+    Update();
+
+    //--- Checks against the sizing code ---------------------------------------
+    Print("---- X-2 geometry check ----");
+    Print("Wing total area   [ft2] = " + GetParmVal(wing, "TotalArea", "WingGeom") + "   (sizing: " + S_REF + ")");
+    Print("Wing total span   [ft]  = " + GetParmVal(wing, "TotalSpan", "WingGeom") + "   (sizing: " + 2.0 * B_HALF + ")");
+    if (!F35_TAIL)
+    {
+        Print("V-tail total area [ft2] = " + GetParmVal(vt, "TotalArea", "WingGeom") + "   (sizing: 30.7)");
+    }
+    else
+    {
+        Print("Horiz. tail area  [ft2] = " + GetParmVal(ht, "TotalArea", "WingGeom") + "   (sizing: " + HT_AREA + ")");
+        Print("Twin fins area    [ft2] = " + GetParmVal(vt, "TotalArea", "WingGeom") + "   (sizing: 8.6 panel, 8.0 vertical projection)");
+    }
+
+    // Save BEFORE CompGeom so the .vsp3 holds the clean model, not the trimmed mesh
+    string fname = F35_TAIL ? "X2.vsp3" : "X2_Vtail.vsp3";
+    WriteVSPFile(fname, SET_ALL);
+    Print("Wrote " + fname);
+
+    //--- CompGeom wetted areas for the report table ---------------------------
+    ComputeCompGeom(SET_ALL, false, 0);
+    string rid = FindLatestResultsID("Comp_Geom");
+    array<string> @names = GetStringResults(rid, "Comp_Name");
+    array<double> @wet   = GetDoubleResults(rid, "Wet_Area");
+    array<double> @theo  = GetDoubleResults(rid, "Theo_Area");
+    Print("---- CompGeom wetted areas [ft2] ----");
+    double tot = 0.0;
+    for (uint i = 0; i < names.length(); i++)
+    {
+        Print(names[i] + " : wetted " + wet[i] + "   (theoretical, untrimmed " + theo[i] + ")");
+        tot += wet[i];
+    }
+    Print("TOTAL : " + tot + "    S_wet/S_ref = " + tot / S_REF);
+
+
+    while (GetNumTotalErrors() > 0)
+    {
+        ErrorObj err = PopLastError();
+        Print(err.GetErrorString());
+    }
+}
