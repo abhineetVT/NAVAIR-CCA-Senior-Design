@@ -117,7 +117,7 @@ rcs/             Standalone, purely-geometric flat-facet RCS estimator
   speed/fixed-fuel-fraction relations with a couple of carrier-specific
   knobs (`cat_credit`, `V_app_kts`) rather than modeling the gear itself.
 - RCS **materials, coatings, and ducting/diffraction** effects --
-  `rcs/` is geometry-only by the user's explicit request.
+  `rcs/` is geometry-only.
 - Stability & control sizing for the tailless (`tail_type = "none"`)
   case -- that configuration zeroes tail area/weight/wetted-area here but
   does not size control-surface area for it.
@@ -132,13 +132,3 @@ backs; a few component-weight and thrust-lapse correlations are
 explicitly flagged as representative/calibrated conceptual-design
 approximations rather than a specific certified engine deck, since no
 such deck exists yet for this aircraft.
-
-## A note on testing
-
-This code was written without a MATLAB/Octave environment available to
-execute it in this session, so it has been checked by careful inspection
-(consistent class contracts, units, and argument lists across every
-file) rather than by running it. Before trusting a sizing result, run
-`run_demo.m` yourself and sanity-check the first iteration's printed
-`S_ref`, `T_SL`, and `spot_factor` against hand-rough-order numbers for
-an aircraft this size.
