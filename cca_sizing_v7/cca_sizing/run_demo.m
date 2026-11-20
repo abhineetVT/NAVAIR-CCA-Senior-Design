@@ -41,6 +41,19 @@ fprintf('  fuel capacity = %6.1f lbf  (wing %.1f ft^3, fuselage %.1f ft^3, usabl
 fprintf('  combat radius = %6.1f nm\n', result.final_pass.radius_nm);
 fprintf('  S_ref       = %8.1f ft^2\n', result.final_pass.S_ref);
 fprintf('  span b      = %8.1f ft\n', result.final_pass.b);
+%% Aero numbers for the report
+g = disc.geom;  aero = disc.aero;
+state = get_state(30000, 0.70);                  % 30 kft, M0.7 cruise
+polar = aero.drag_polar(state);
+
+fprintf('\n--- Aero summary (30 kft, M0.70) ---\n');
+fprintf('  CD0 (clean, incl. store increment) = %.4f\n', polar.CD0);
+fprintf('  Oswald efficiency e                = %.3f\n', polar.e);
+fprintf('  K1 = 1/(pi*AR*e)                   = %.4f\n', polar.K1);
+fprintf('  Max L/D                            = %.2f at CL = %.2f\n', polar.LD_max, polar.CL_at_LDmax);
+fprintf('  CLmax clean                        = %.2f\n', aero.get_CLmax(state, struct('config','clean')));
+fprintf('  CLmax takeoff                      = %.2f\n', aero.get_CLmax(state, struct('config','takeoff')));
+fprintf('  CLmax landing                      = %.2f\n', aero.get_CLmax(state, struct('config','landing')));
 fprintf('  footprint   = %8.1f ft^2 (folded span x length)\n', disc.geom.b_effective*disc.geom.l_fus);
 fprintf('  spot factor = %8.3f   (limit %.2f, reference %.0f ft^2)\n', result.final_pass.spot_factor, disc.geom.spot_factor_max, disc.geom.spot_reference_area);
 fprintf('  engine mode = %s  (%d x %s)\n', disc.prop.engine_mode, disc.prop.n_engines, disc.prop.engine_type);
